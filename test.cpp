@@ -19,7 +19,6 @@ int main()
     //createTrackbar("Value min","Trackbar",&vmin,255);
     //createTrackbar("Value max","Trackbar",&vmax,255);
 
-
     VideoCapture video("orange1.mp4");
     Mat frame;
     while(1)
@@ -47,19 +46,19 @@ int main()
         for(size_t i = 0; i < edge.size(); i++)
         {
             //绘制轮廓
-            drawContours(frame,edge,i,Scalar(0,255,255),2,8);
+            //drawContours(frame,edge,i,Scalar(0,255,255),2,8);
             
 
             //利用轮廓下的面积寻找我们所需要的“圆形”
             int area = contourArea(edge[i]);
-            cout << area << endl;
+            //cout << area << endl;
 
             //圆形的面积在1000以上
             if(area > 1000)
             {
                 //绘制最小外接矩形
                 Rect boundingRect = cv::boundingRect(edge[i]);
-                rectangle(frame, boundingRect, Scalar(0, 255, 0), 2);
+                //rectangle(frame, boundingRect, Scalar(0, 255, 0), 2);
 
                 //寻找最小外接圆圆心，即最小外接矩形两条对角线的交点
                 Point centre;
