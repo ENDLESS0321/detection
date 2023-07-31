@@ -4,7 +4,7 @@ using namespace std;
 using namespace cv;
 int hmin = 0 ,smin = 162 ,vmin = 0;
 int hmax = 43 ,smax = 255 ,vmax = 255;
-double fps = 29.0;
+int fps = 29;
 int frame_number = 0;
 int max(int a,int b)
 {
@@ -23,13 +23,18 @@ int main()
 
     VideoCapture video("orange1.mp4");
     Mat frame;
+    //定义一个容器，储存圆心坐标
+    vector<Point> centres;
+
+    //定义一个容器，计算圆心坐标差值
+    vector<Point> delta;
 
     //定义卡尔曼滤波器
     KalmanFilter kf(4,2,0);
     kf.statePre.at<float>(0) = 685;
     kf.statePre.at<float>(1) = 173;
-    kf.statePre.at<float>(2) = -1;   // 初始x速度
-    kf.statePre.at<float>(3) = 1;   // 初始y速度
+    kf.statePre.at<float>(2) = 0;   // 初始x速度
+    kf.statePre.at<float>(3) = 0;   // 初始y速度
     kf.transitionMatrix = (Mat_<float>(4,4) << 1,0,1,0,
                                                0,1,0,1,
                                                0,0,1,0,
@@ -45,7 +50,7 @@ int main()
     setIdentity(kf.processNoiseCov,Scalar::all(0.0001));
 
     //初始化测量噪声协方差矩阵
-    setIdentity(kf.measurementNoiseCov,Scalar::all(0.1));
+    setIdentity(kf.measurementNoiseCov,Scalar::all(0.0001));
 
     //初始化估计误差协方差矩阵
     setIdentity(kf.errorCovPost,Scalar::all(100));
@@ -70,9 +75,15 @@ int main()
         vector<vector<Point>> edge;
         vector<Vec4i> h;
         findContours(imgMask,edge,h,RETR_TREE,CHAIN_APPROX_SIMPLE,Point());
-        
-        //定义一个容器，储存圆心坐标
-        vector<Point> centres;
+
+        //如果停下来了，清空圆心容器
+        /*if(delta.size() > 0 && delta[delta.size()-1].x * delta[delta.size()-1].x + delta[delta.size()-1].y * delta[delta.size()-1].y == 0)
+        {
+            centres.clear();
+        }*/
+
+        //暂存r
+        int rr = 0;
 
         //绘制边缘和最小外接矩形
         for(size_t i = 0; i < edge.size(); i++)
@@ -104,16 +115,38 @@ int main()
 
                 //最小外接圆的半径为最小外接矩形长和宽的一半的大者
                 int r = max(boundingRect.width/2,boundingRect.height/2);
+                rr = r;
 
                 //绘制最小外接圆及其圆心
-                circle(frame,centre,r,Scalar(0,0,255),3,8,0);
-                circle(frame,centre,5,Scalar(0,255,0),-1,8,0);
+                cv::circle(frame,centre,r,Scalar(0,0,255),3,8,0);
+                cv::circle(frame,centre,5,Scalar(0,255,0),-1,8,0);
             }
         }
         
+        //简单调试
+
         //打印容器中最后一个圆心坐标
-        cout << centres[centres.size()-1].x << " , " << centres[centres.size()-1].y << endl;
+        //cout << centres[centres.size()-1].x << " , " << centres[centres.size()-1].y << endl;
+
+        //设置差值
+        if(centres.size() > 1)
+        {
+            Point p = centres[centres.size()-1]-centres[centres.size()-2];
+            delta.push_back(p);
+        }
+
+        //打印最新差值
+        if(delta.size() > 0)
+        {
+            //cout << delta[delta.size()-1].x << " , " << delta[delta.size()-1].y << endl;
+            //cout << delta[delta.size()-1].x * delta[delta.size()-1].x + delta[delta.size()-1].y * delta[delta.size()-1].y << endl;
+        }
         
+        //创建储存所有预测点的容器
+        deque<Point> pre_points;
+        //暂存预测点
+        Point pre_p(0,0);
+    
         for (size_t i = 0; i < centres.size(); i++)
         {
             measurement(0) = centres[i].x;
@@ -128,17 +161,22 @@ int main()
             // 获取预测的圆心坐标
             Point predictedCenter(prediction.at<float>(0), prediction.at<float>(1));
 
-            // 绘制预测点
-            circle(frame, predictedCenter, 5, Scalar(255, 0, 0), -1, 8, 0);
+            //暂存预测点
+            pre_p = predictedCenter;
         }
+        
+
+        // 绘制预测点
+        cv::circle(frame, pre_p, 5, Scalar(255, 0, 0), -1, 8, 0);
+        cv::circle(frame, pre_p, rr, Scalar(255, 255, 255), 2, 8, 0);
 
         //帧数更新
         frame_number++;
 
         //输出图像
         //imshow("video",imgMask);
-        imshow("video2",frame);
-        waitKey(30000/video.get(5));
+        cv::imshow("video2",frame);
+        cv::waitKey(10000/video.get(5));
 
     }
 
