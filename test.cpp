@@ -4,7 +4,8 @@ using namespace std;
 using namespace cv;
 int hmin = 0 ,smin = 162 ,vmin = 0;
 int hmax = 43 ,smax = 255 ,vmax = 255;
-int fps = 29;
+double fps = 29;
+double dt = 1.0 / fps;
 int frame_number = 0;
 int max(int a,int b)
 {
@@ -23,20 +24,27 @@ int main()
 
     VideoCapture video("orange1.mp4");
     Mat frame;
+
+    //定义方向
+    string direction = "left";
+
     //定义一个容器，储存圆心坐标
     vector<Point> centres;
 
     //定义一个容器，计算圆心坐标差值
     vector<Point> delta;
 
+    //定义速度容器
+    vector<Point> v;
+
     //定义卡尔曼滤波器
     KalmanFilter kf(4,2,0);
     kf.statePre.at<float>(0) = 685;
     kf.statePre.at<float>(1) = 173;
-    kf.statePre.at<float>(2) = 0;   // 初始x速度
-    kf.statePre.at<float>(3) = 0;   // 初始y速度
-    kf.transitionMatrix = (Mat_<float>(4,4) << 1,0,1,0,
-                                               0,1,0,1,
+    kf.statePre.at<float>(2) = -5;   // 初始x速度
+    kf.statePre.at<float>(3) = 5;   // 初始y速度
+    kf.transitionMatrix = (Mat_<float>(4,4) << 1,0,dt,0,
+                                               0,1,0,dt,
                                                0,0,1,0,
                                                0,0,0,1);
     Mat_<float> measurement(2,1);
@@ -70,6 +78,9 @@ int main()
         GaussianBlur(frame,imgBlur,Size(3,3),3,0);
         cvtColor(imgBlur,imgHSV,COLOR_BGR2HSV);
         inRange(imgHSV,lower,uper,imgMask);
+
+        //保留上一帧的方向
+        string last_direction = direction;
 
         //寻找边缘
         vector<vector<Point>> edge;
@@ -133,7 +144,37 @@ int main()
         {
             Point p = centres[centres.size()-1]-centres[centres.size()-2];
             delta.push_back(p);
+            
+            //计算速度
+            v.push_back(Point(p.x/dt,p.y/dt));
+            cout << v.back().x << " , " << v.back().y << endl;
+
+            //传统的速度预测
+            Point pre(centres.back().x+int(v.back().x * dt), centres.back().y+int(v.back().y * dt));
+            
+
+            cv::circle(frame, pre, 5, Scalar(255, 255, 255), -1, 8, 0);
+            cv::circle(frame, pre, rr, Scalar(255, 255, 255), 2, 8, 0);
+
         }
+
+        
+        //判断方向
+        if(delta.size())
+        {
+            if(delta.back().x > 0)
+            {
+                direction = "right";
+            }
+            if(delta.back().x < 0)
+            {
+                direction = "left";
+            }
+        }
+
+        //在视频上打印方向
+        putText(frame,direction,Point(10,30),0,1,Scalar(255,255,255),2);
+        
 
         //打印最新差值
         if(delta.size() > 0)
@@ -146,7 +187,7 @@ int main()
         deque<Point> pre_points;
         //暂存预测点
         Point pre_p(0,0);
-    
+        
         for (size_t i = 0; i < centres.size(); i++)
         {
             measurement(0) = centres[i].x;
@@ -163,12 +204,14 @@ int main()
 
             //暂存预测点
             pre_p = predictedCenter;
+
+            
         }
         
 
         // 绘制预测点
-        cv::circle(frame, pre_p, 5, Scalar(255, 0, 0), -1, 8, 0);
-        cv::circle(frame, pre_p, rr, Scalar(255, 255, 255), 2, 8, 0);
+        //cv::circle(frame, pre_p, 5, Scalar(255, 0, 0), -1, 8, 0);
+        //cv::circle(frame, pre_p, rr, Scalar(255, 255, 255), 2, 8, 0);
 
         //帧数更新
         frame_number++;
